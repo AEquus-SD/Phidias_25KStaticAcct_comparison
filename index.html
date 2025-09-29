@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>25K Static Account Analysis</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js for visualization -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
     <style>
         body {
@@ -22,6 +24,9 @@
         }
         .header-bg-3 {
             background-color: #9333ea; /* Purple */
+        }
+        .header-bg-4 {
+            background-color: #f59e0b; /* Amber */
         }
         /* Custom styling for the input fields */
         .editable-input {
@@ -52,7 +57,6 @@
                 </div>
 
                 <!-- Controls and Ratio Summary -->
-                <!-- UPDATED: Changed lg:grid-cols-3 to lg:grid-cols-4 to create enough space for ratios -->
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
                     
                     <!-- 1. Subscription Type Toggle (col-span-1) -->
@@ -85,7 +89,6 @@
                     </div>
 
                     <!-- 3. RIGHT SUMMARY: Consolidated Ratio Block -->
-                    <!-- UPDATED: Spans 2 columns on medium/large screens for more space -->
                     <div class="col-span-1 md:col-span-2 lg:col-span-2 p-3 bg-gray-50 rounded-lg border border-gray-200 flex flex-col justify-center">
                         <span class="text-sm font-medium text-gray-700 text-center mb-1">Conversion Ratios:</span>
                         
@@ -190,18 +193,21 @@
                             <table class="min-w-full divide-y divide-gray-200">
                                 <thead class="bg-gray-50">
                                     <tr>
-                                        <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Option</th>
-                                        <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Cost to Fund</th>
+                                        <!-- Optimized header text to prevent wrapping on mobile -->
+                                        <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/2">Option</th>
+                                        <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/2">Total Cost</th>
                                     </tr>
                                 </thead>
                                 <tbody class="bg-white divide-y divide-gray-200">
                                     <tr>
-                                        <td class="px-3 py-4 whitespace-nowrap text-sm font-medium text-gray-900">1. Eval Only ($44)</td>
-                                        <td id="cost1" class="px-3 py-4 whitespace-nowrap text-sm text-gray-500 font-semibold">$0.00</td>
+                                        <!-- Reduced padding and ensured no wrapping for cell content -->
+                                        <td class="px-3 py-3 whitespace-nowrap text-sm font-medium text-gray-900">1. Eval Only ($44)</td>
+                                        <td id="cost1" class="px-3 py-3 whitespace-nowrap text-sm text-gray-500 font-semibold">$0.00</td>
                                     </tr>
                                     <tr>
-                                        <td class="px-3 py-4 whitespace-nowrap text-sm font-medium text-gray-900">2. All-In ($55)</td>
-                                        <td id="cost2" class="px-3 py-4 whitespace-nowrap text-sm text-gray-500 font-semibold">$0.00</td>
+                                        <!-- Reduced padding and ensured no wrapping for cell content -->
+                                        <td class="px-3 py-3 whitespace-nowrap text-sm font-medium text-gray-900">2. All-In ($55)</td>
+                                        <td id="cost2" class="px-3 py-3 whitespace-nowrap text-sm text-gray-500 font-semibold">$0.00</td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -211,6 +217,39 @@
                 </div>
                 <!-- END: Two-Column Layout -->
             </div>
+
+            <!-- New Card: ROI Diminishing Returns Visualization -->
+            <div class="card p-6 transition hover:shadow-lg">
+                <div class="header-bg-4 p-4 rounded-t-lg mb-4">
+                    <h2 class="text-xl font-bold text-white">ROI Diminishing Returns Visualization</h2>
+                    <p class="text-sm text-gray-100 opacity-90">Visualizing the ROI for a single successful payout as Evaluation Attempts increase.</p>
+                </div>
+                
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                        Chart Cost Structure:
+                    </label>
+                    <div id="chartCostOptionToggle" class="flex rounded-lg shadow-sm border border-gray-300 overflow-hidden w-full max-w-sm">
+                        <button id="chartOption1Btn" data-value="1" onclick="selectChartOption(1)"
+                                class="flex-1 p-2 text-xs sm:text-sm font-semibold transition duration-150 bg-yellow-600 text-white rounded-l-lg">
+                            Eval Only 
+                        </button>
+                        <button id="chartOption2Btn" data-value="2" onclick="selectChartOption(2)"
+                                class="flex-1 p-2 text-xs sm:text-sm font-semibold transition duration-150 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-r-lg">
+                            OTP - All-in
+                        </button>
+                    </div>
+                    <input type="hidden" id="chartCostOption" value="1"> 
+                </div>
+
+                <div class="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                    <canvas id="roiChart" class="w-full h-auto" style="height: 300px;"></canvas>
+                </div>
+                <p id="chartNote" class="mt-4 text-xs text-gray-600 text-center">
+                    The calculation uses **Option 1 (Eval Only)**: $44 per attempt + $80 Funding Fee (paid once).
+                </p>
+            </div>
+
         </div>
     </div>
 
@@ -220,18 +259,22 @@
         const ALL_IN_COST_2 = 55; // Option 2: Eval + Funding Fee Included
         const FUNDING_FEE = 80; // Separate fee paid in Option 1 upon passing Eval
         const NET_PAYOUT = 800; // 80% of $1000
+        
+        let roiChartInstance; // Global variable to hold the Chart.js instance
 
         // --- Initialization ---
         document.addEventListener('DOMContentLoaded', () => {
             populateDropdown('evalAttempts', 1, 20);
-            populateDropdown('numFundedAccounts', 1, 10, ' Cycles'); // Updated dropdown text in function
+            populateDropdown('numFundedAccounts', 1, 10, ' Cycles');
             
-            // Default setup for Task 3
+            // Default setup for Conversion Analysis (Top Card)
             document.getElementById('numFundedAccounts').value = 3; 
-            
             updateEvalCost();
-            generateEvalInputs(); // Initialize the dynamic inputs
-            selectOption(1); // Initialize button state
+            generateEvalInputs(); 
+            selectOption(1); 
+            
+            // Default setup for Chart (Bottom Card)
+            selectChartOption(1); // Initialize chart buttons and draw chart
         });
 
         function populateDropdown(id, start, end, suffix = ' Attempts') {
@@ -240,7 +283,6 @@
                 const option = document.createElement('option');
                 option.value = i;
                 if (id === 'numFundedAccounts') {
-                     // Change text to 'Funded Accts'
                      option.textContent = i + (i > 1 ? ' Funded Accts' : ' Funded Acct');
                 } else {
                     option.textContent = i + suffix;
@@ -253,64 +295,40 @@
             return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
         }
         
-        // --- Scenario Subscription Toggle Logic ---
+        // --- Top Card (Conversion Analysis) Subscription Toggle Logic ---
         function selectOption(value) {
-            // Update the hidden input value
             document.getElementById('costOption').value = value;
             
             const btn1 = document.getElementById('option1Btn');
             const btn2 = document.getElementById('option2Btn');
 
-            // Define base classes
-            const baseClasses = ['flex-1', 'p-2', 'text-xs', 'sm:text-sm', 'font-semibold', 'transition', 'duration-150', 'border-r-0', 'border-gray-300'];
             const activeClasses = ['bg-purple-600', 'text-white'];
             const inactiveClasses = ['bg-gray-100', 'text-gray-700', 'hover:bg-gray-200'];
 
-            // Apply base classes to ensure consistent styling
-            btn1.classList.add(...baseClasses);
-            btn2.classList.add(...baseClasses);
-            
-            // Clear specific border/radius for toggled look
-            btn1.classList.remove('rounded-r-lg');
-            btn2.classList.remove('rounded-l-lg', 'border-r-0');
+            [btn1, btn2].forEach(btn => {
+                btn.classList.remove(...activeClasses, ...inactiveClasses);
+                btn.classList.add('flex-1', 'p-2', 'text-xs', 'sm:text-sm', 'font-semibold', 'transition', 'duration-150');
+            });
 
             if (value === 1) {
-                // Option 1 Active
-                btn1.classList.add(...activeClasses);
-                btn1.classList.remove(...inactiveClasses);
-                
-                // Option 2 Inactive
-                btn2.classList.add(...inactiveClasses);
-                btn2.classList.remove(...activeClasses);
+                btn1.classList.add(...activeClasses, 'rounded-l-lg');
+                btn2.classList.add(...inactiveClasses, 'rounded-r-lg');
             } else {
-                // Option 2 Active
-                btn2.classList.add(...activeClasses);
-                btn2.classList.remove(...inactiveClasses);
-                
-                // Option 1 Inactive
-                btn1.classList.add(...inactiveClasses);
-                btn1.classList.remove(...activeClasses);
+                btn2.classList.add(...activeClasses, 'rounded-r-lg');
+                btn1.classList.add(...inactiveClasses, 'rounded-l-lg');
             }
             
-            // Re-apply specific rounded corners for the toggle group edges
-            btn1.classList.add('rounded-l-lg');
-            btn2.classList.add('rounded-r-lg');
-            
-            // Re-run the main calculation
             updateScenarioAnalysis();
         }
 
-        // --- Eval Cost Analysis ---
+        // --- Eval Cost Analysis (Middle Card) ---
         function updateEvalCost() {
             const attempts = parseInt(document.getElementById('evalAttempts').value, 10);
             const cost1Element = document.getElementById('cost1');
             const cost2Element = document.getElementById('cost2');
             const benefitSummaryElement = document.getElementById('benefitSummary');
             
-            // Cost 1: Eval Only (Pay Eval attempts + 1 successful funding fee)
             const totalCost1 = (attempts * EVAL_COST_1) + FUNDING_FEE;
-            
-            // Cost 2: All-In (Pay All-In cost for every attempt)
             const totalCost2 = attempts * ALL_IN_COST_2;
 
             cost1Element.textContent = formatCurrency(totalCost1);
@@ -337,17 +355,15 @@
             benefitSummaryElement.textContent = summaryText;
         }
         
-        // --- Scenario Analyzer ---
-
+        // --- Scenario Analyzer (Top Card) ---
         function generateEvalInputs() {
             const numFundedAccounts = parseInt(document.getElementById('numFundedAccounts').value, 10);
             const container = document.getElementById('evalAttemptsContainer');
-            container.innerHTML = ''; // Clear existing inputs
+            container.innerHTML = ''; 
 
             for (let i = 1; i <= numFundedAccounts; i++) {
                 const div = document.createElement('div');
                 div.className = 'flex flex-col space-y-1';
-                // Simplified HTML structure for fully editable input
                 div.innerHTML = `
                     <label class="text-xs font-medium text-gray-700">Acct #${i}</label>
                     <input type="number" min="1" value="1" id="evalAttempts${i}" 
@@ -356,12 +372,11 @@
                 `;
                 container.appendChild(div);
             }
-            updateScenarioAnalysis(); // Calculate immediately after generating inputs
+            updateScenarioAnalysis(); 
         }
 
         function updateScenarioAnalysis() {
             const numFundedAccounts = parseInt(document.getElementById('numFundedAccounts').value, 10);
-            // Read from hidden input, which is updated by selectOption()
             const selectedOption = document.getElementById('costOption').value; 
             let totalExpenses = 0;
             let totalEvalAttempts = 0;
@@ -369,20 +384,17 @@
             for (let i = 1; i <= numFundedAccounts; i++) {
                 const inputElement = document.getElementById(`evalAttempts${i}`);
                 
-                // Ensure input is a valid positive number
                 let attempts = parseInt(inputElement ? inputElement.value : 1, 10);
                 if (isNaN(attempts) || attempts < 1) {
                     attempts = 1;
-                    if (inputElement) inputElement.value = 1; // Reset to 1 if invalid
+                    if (inputElement) inputElement.value = 1;
                 }
                 
                 let cycleCost = 0;
 
                 if (selectedOption === '1') {
-                    // Option 1: (N * $44 Eval Cost) + $80 Funding Fee (paid once per cycle)
                     cycleCost = (attempts * EVAL_COST_1) + FUNDING_FEE;
                 } else if (selectedOption === '2') {
-                    // Option 2: N * $55 All-in Cost
                     cycleCost = attempts * ALL_IN_COST_2;
                 }
                 
@@ -391,65 +403,191 @@
             }
 
             const netProfitLoss = NET_PAYOUT - totalExpenses;
-            // Calculate ROI: (Net Profit / Total Expenses) * 100
             const roi = (totalExpenses > 0) ? ((netProfitLoss / totalExpenses) * 100) : 0;
             
-            // Calculate Ratios
             let evalToFundedRatio = 0;
             if (numFundedAccounts > 0) {
-                 // 1. Avg. Eval per Funded Ratio: Total Evals / Total Funded Accounts
                  evalToFundedRatio = totalEvalAttempts / numFundedAccounts;
             }
             
-            // Get DOM elements
+            // Update Ratios
+            document.getElementById('evalToFundedRatio').textContent = `${evalToFundedRatio.toFixed(2)}:1`; 
+            document.getElementById('evalToPayoutRatio').textContent = `${totalEvalAttempts}:1`; 
+            document.getElementById('fundedToPayoutRatio').textContent = `${numFundedAccounts}:1`; 
+
+            // Update Results
             const totalExpenseElement = document.getElementById('scenarioTotalExpense');
             const netProfitElement = document.getElementById('scenarioNetProfit');
             const roiValueElement = document.getElementById('scenarioROI');
-            const totalEvalsElement = document.getElementById('scenarioTotalEvals');
             const profitContainer = netProfitElement.parentElement.parentElement;
-            const scenarioNoteElement = document.getElementById('scenarioNote');
-            const ratioFundedElement = document.getElementById('fundedToPayoutRatio');
-            const ratioEvalElement = document.getElementById('evalToPayoutRatio');
-            const avgEvalRatioElement = document.getElementById('evalToFundedRatio'); 
-
-            // Update Ratios
-            avgEvalRatioElement.textContent = `${evalToFundedRatio.toFixed(2)}:1`; 
-            ratioEvalElement.textContent = `${totalEvalAttempts}:1`; 
-            ratioFundedElement.textContent = `${numFundedAccounts}:1`; 
-
-            // Update note based on selection
-            if (selectedOption === '1') {
-                 scenarioNoteElement.textContent = `Calculation uses Option 1 ($44 Eval + $80 Funding Fee per cycle).`;
-            } else {
-                 scenarioNoteElement.textContent = `Calculation uses Option 2 ($55 All-In per attempt).`;
-            }
-
-            // Update values and colors
-            totalEvalsElement.textContent = totalEvalAttempts;
+            
+            document.getElementById('scenarioTotalEvals').textContent = totalEvalAttempts;
             totalExpenseElement.textContent = formatCurrency(totalExpenses);
             netProfitElement.textContent = formatCurrency(Math.abs(netProfitLoss));
             roiValueElement.textContent = `${roi.toFixed(2)}%`;
 
             // Update colors based on profit/loss
-            profitContainer.classList.remove('bg-green-100', 'border-green-500', 'bg-red-100', 'border-red-500', 'bg-yellow-100', 'border-yellow-500');
+            profitContainer.className = 'space-y-3 p-4 rounded-lg border';
             netProfitElement.classList.remove('text-green-600', 'text-red-600', 'text-yellow-600');
             roiValueElement.classList.remove('text-green-600', 'text-red-600', 'text-yellow-600');
 
             if (netProfitLoss > 0) {
-                // Profit
                 profitContainer.classList.add('bg-green-100', 'border-green-500');
                 netProfitElement.classList.add('text-green-600');
                 roiValueElement.classList.add('text-green-600');
             } else if (netProfitLoss < 0) {
-                // Loss
                 profitContainer.classList.add('bg-red-100', 'border-red-500');
                 netProfitElement.classList.add('text-red-600');
                 roiValueElement.classList.add('text-red-600');
             } else {
-                // Breakeven
                 profitContainer.classList.add('bg-yellow-100', 'border-yellow-500');
                 netProfitElement.classList.add('text-yellow-600');
                 roiValueElement.classList.add('text-yellow-600');
+            }
+
+            document.getElementById('scenarioNote').textContent = `Calculation uses Option ${selectedOption} (${selectedOption === '1' ? '$44 Eval + $80 Funding Fee per cycle' : '$55 All-In per attempt'}).`;
+        }
+        
+        // --- Chart Toggle Logic (Bottom Card) ---
+
+        function selectChartOption(value) {
+            document.getElementById('chartCostOption').value = value;
+            
+            const btn1 = document.getElementById('chartOption1Btn');
+            const btn2 = document.getElementById('chartOption2Btn');
+            const chartNote = document.getElementById('chartNote');
+
+            const activeClasses = ['bg-yellow-600', 'text-white'];
+            const inactiveClasses = ['bg-gray-100', 'text-gray-700', 'hover:bg-gray-200'];
+
+            [btn1, btn2].forEach(btn => {
+                btn.classList.remove(...activeClasses, ...inactiveClasses);
+                btn.classList.add('flex-1', 'p-2', 'text-xs', 'sm:text-sm', 'font-semibold', 'transition', 'duration-150');
+            });
+
+            if (value === 1) {
+                btn1.classList.add(...activeClasses, 'rounded-l-lg');
+                btn2.classList.add(...inactiveClasses, 'rounded-r-lg');
+                chartNote.innerHTML = 'The calculation uses **Option 1 (Eval Only)**: $44 per attempt + $80 Funding Fee (paid once).';
+            } else {
+                btn2.classList.add(...activeClasses, 'rounded-r-lg');
+                btn1.classList.add(...inactiveClasses, 'rounded-l-lg');
+                chartNote.innerHTML = 'The calculation uses **Option 2 (OTP - All-in)**: $55 paid for every Evaluation attempt.';
+            }
+            
+            drawRoiChart(); // Redraw chart based on new option
+        }
+
+        // --- Chart Data Calculation ---
+        function calculateRoiData(option) {
+            const data = [];
+            for (let attempts = 1; attempts <= 20; attempts++) {
+                let totalCost;
+                if (option === 1) {
+                    // Option 1 Cost: (N * $44 Eval Cost) + $80 Funding Fee
+                    totalCost = (attempts * EVAL_COST_1) + FUNDING_FEE;
+                } else {
+                    // Option 2 Cost: N * $55 All-in Cost
+                    totalCost = attempts * ALL_IN_IN_COST_2;
+                }
+                
+                const netProfitLoss = NET_PAYOUT - totalCost;
+                const roi = (netProfitLoss / totalCost) * 100;
+                
+                data.push(roi);
+            }
+            return data;
+        }
+
+        // --- Chart Drawing ---
+        function drawRoiChart() {
+            const selectedOption = parseInt(document.getElementById('chartCostOption').value, 10);
+            const roiData = calculateRoiData(selectedOption);
+            const labels = Array.from({ length: 20 }, (_, i) => i + 1);
+            
+            const datasets = [{
+                label: selectedOption === 1 ? 'Option 1 (Eval Only)' : 'Option 2 (OTP - All-in)',
+                data: roiData,
+                borderColor: selectedOption === 1 ? '#9333ea' : '#f59e0b', // Purple or Amber
+                backgroundColor: selectedOption === 1 ? 'rgba(147, 51, 234, 0.1)' : 'rgba(245, 158, 11, 0.1)',
+                tension: 0.4,
+                pointRadius: 4,
+                pointHoverRadius: 6,
+                fill: true,
+                borderWidth: 3,
+            }];
+
+            const chartConfig = {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: datasets,
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top',
+                            labels: {
+                                font: { family: 'Inter' }
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: (context) => `ROI: ${context.parsed.y.toFixed(2)}%`,
+                                title: (context) => `Attempts: ${context[0].label}`,
+                            },
+                            bodyFont: { family: 'Inter' },
+                            titleFont: { family: 'Inter', weight: 'bold' }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Evaluation Attempts (N) to Pass',
+                                font: { family: 'Inter', size: 14 }
+                            },
+                            ticks: { font: { family: 'Inter' } }
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: 'Return on Investment (ROI %)',
+                                font: { family: 'Inter', size: 14 }
+                            },
+                            ticks: {
+                                callback: (value) => `${value}%`,
+                                font: { family: 'Inter' }
+                            },
+                            // Add Zero Line
+                            afterBuildTicks: (axis) => {
+                                // Find the index where 0 is closest
+                                const zeroIndex = axis.ticks.findIndex(t => t.value >= 0);
+                                if (zeroIndex !== -1) {
+                                    axis.ticks[zeroIndex].label = '0% (Breakeven)';
+                                    // Highlight the 0% line
+                                    axis.gridLines = { color: 'rgba(248, 113, 113, 1)' };
+                                }
+                            },
+                            min: -100 // Ensure visibility of the negative loss zone
+                        }
+                    }
+                }
+            };
+
+            const ctx = document.getElementById('roiChart').getContext('2d');
+
+            if (roiChartInstance) {
+                // If chart exists, update its data
+                roiChartInstance.data.datasets = datasets;
+                roiChartInstance.options.scales.y.suggestedMax = Math.max(...roiData) + 50;
+                roiChartInstance.update();
+            } else {
+                // Otherwise, create new chart
+                roiChartInstance = new Chart(ctx, chartConfig);
             }
         }
     </script>
